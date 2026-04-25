@@ -1,0 +1,176 @@
+
+<h2 class="sr-only">All coins listed on Poloniex exchange with current prices and 24-hour trading volume</h2>
+<style>
+input[type=text]{width:100%;box-sizing:border-box;margin-bottom:12px}
+table{width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed}
+th{text-align:left;padding:8px 10px;font-weight:500;font-size:12px;color:var(--color-text-secondary);border-bottom:0.5px solid var(--color-border-tertiary);position:sticky;top:0;background:var(--color-background-primary);cursor:pointer}
+th:hover{color:var(--color-text-primary)}
+td{padding:7px 10px;border-bottom:0.5px solid var(--color-border-tertiary);color:var(--color-text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:var(--color-background-secondary)}
+.rank{color:var(--color-text-secondary);font-size:12px;width:36px}
+.sym{font-weight:500;font-size:12px;color:var(--color-text-secondary);width:60px}
+.name{width:180px}
+.price{text-align:right;width:100px}
+.vol{text-align:right;color:var(--color-text-secondary);font-size:12px;width:110px}
+.badge{display:inline-block;font-size:11px;padding:2px 7px;border-radius:4px;background:var(--color-background-info);color:var(--color-text-info)}
+.top-bar{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px}
+.stat{font-size:13px;color:var(--color-text-secondary)}
+.stat strong{color:var(--color-text-primary);font-weight:500}
+.scroll{max-height:520px;overflow-y:auto;border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-lg)}
+</style>
+<div style="padding:1rem 0">
+<div class="top-bar">
+  <div class="stat"><strong>112</strong> coins listed on Poloniex &nbsp;·&nbsp; <strong>133</strong> markets &nbsp;·&nbsp; Data: Coinranking, Apr 26 2026</div>
+  <div>
+    <select id="filter" style="font-size:13px;padding:4px 8px">
+      <option value="all">All prices</option>
+      <option value="range">$2 – $500 only</option>
+    </select>
+  </div>
+</div>
+<input type="text" id="search" placeholder="Search coin name or symbol…">
+<div class="scroll">
+<table>
+<thead><tr>
+  <th class="rank" onclick="sort('rank')">#</th>
+  <th class="sym" onclick="sort('sym')">Symbol</th>
+  <th class="name" onclick="sort('name')">Name</th>
+  <th class="price" onclick="sort('price')">Price ▾</th>
+  <th class="vol" onclick="sort('vol')">24h Volume</th>
+</tr></thead>
+<tbody id="tbody"></tbody>
+</table>
+</div>
+</div>
+<script>
+const coins=[
+{r:1,s:"USDT",n:"Tether USD",p:1.00,v:622380000},{r:2,s:"BTC",n:"Bitcoin",p:77672.52,v:216230000},
+{r:3,s:"ETH",n:"Ethereum",p:2317.07,v:101010000},{r:4,s:"ZEC",n:"Zcash",p:357.01,v:58160000},
+{r:5,s:"SOL",n:"Solana",p:86.61,v:27420000},{r:6,s:"XRP",n:"XRP",p:1.43,v:21300000},
+{r:7,s:"DOGE",n:"Dogecoin",p:0.0984,v:20640000},{r:8,s:"TRX",n:"TRON",p:0.323,v:13560000},
+{r:9,s:"BNB",n:"BNB",p:633.87,v:10570000},{r:10,s:"SUI",n:"Sui Network",p:0.946,v:8560000},
+{r:11,s:"DASH",n:"Dash",p:36.35,v:8440000},{r:12,s:"XMR",n:"Monero",p:369.32,v:7640000},
+{r:13,s:"XLM",n:"Stellar",p:0.172,v:7040000},{r:14,s:"PEPE",n:"PEPE",p:0.000000386,v:6700000},
+{r:15,s:"AAVE",n:"Aave",p:96.07,v:6640000},{r:16,s:"BCH",n:"Bitcoin Cash",p:453.70,v:6590000},
+{r:17,s:"LTC",n:"Litecoin",p:56.45,v:6370000},{r:18,s:"ADA",n:"Cardano",p:0.252,v:6230000},
+{r:19,s:"LINK",n:"Chainlink",p:9.43,v:5640000},{r:20,s:"SAND",n:"The Sandbox",p:0.0801,v:5490000},
+{r:21,s:"USDD",n:"USDD",p:1.00,v:5010000},{r:22,s:"JST",n:"JUST",p:0.0794,v:4910000},
+{r:23,s:"SUN",n:"Sun",p:0.0186,v:4880000},{r:24,s:"UNI",n:"Uniswap",p:3.26,v:4090000},
+{r:25,s:"AVAX",n:"Avalanche",p:9.41,v:3770000},{r:26,s:"ETC",n:"Ethereum Classic",p:8.51,v:3400000},
+{r:27,s:"NFT",n:"AINFT",p:0.0000000319,v:3070000},{r:28,s:"STEEM",n:"Steem",p:0.0583,v:2810000},
+{r:29,s:"BSV",n:"Bitcoin SV",p:17.28,v:2480000},{r:30,s:"NEAR",n:"NEAR Protocol",p:1.41,v:2470000},
+{r:31,s:"ICP",n:"Internet Computer",p:2.46,v:2410000},{r:32,s:"SKY",n:"SKY Governance",p:0.0828,v:2380000},
+{r:33,s:"SC",n:"Siacoin",p:0.000946,v:2380000},{r:34,s:"ZRX",n:"0x",p:0.112,v:2300000},
+{r:35,s:"FIL",n:"Filecoin",p:0.939,v:2250000},{r:36,s:"DOT",n:"Polkadot",p:1.26,v:2060000},
+{r:37,s:"MANA",n:"Decentraland",p:0.0970,v:1950000},{r:38,s:"POL",n:"Polygon",p:0.0928,v:1920000},
+{r:39,s:"ATOM",n:"Cosmos",p:2.04,v:1890000},{r:40,s:"APT",n:"Aptos",p:0.968,v:1800000},
+{r:41,s:"HTX",n:"HTX",p:0.0000182,v:1790000},{r:42,s:"WLD",n:"Worldcoin",p:0.262,v:1790000},
+{r:43,s:"ULTIMA",n:"UltimaEcosystem",p:3084.36,v:1720000},{r:44,s:"SHIB",n:"Shiba Inu",p:0.0000000620,v:1720000},
+{r:45,s:"ARB",n:"Arbitrum",p:0.131,v:1620000},{r:46,s:"FLOKI",n:"FLOKI",p:0.0000327,v:1510000},
+{r:47,s:"LDO",n:"Lido DAO",p:0.375,v:1320000},{r:48,s:"OP",n:"Optimism",p:0.128,v:1200000},
+{r:49,s:"A",n:"Vaulta",p:0.0879,v:1160000},{r:50,s:"LSK",n:"Lisk",p:0.129,v:1090000},
+{r:51,s:"WIN",n:"WINkLink",p:0.0000204,v:1010000},{r:52,s:"IMX",n:"Immutable",p:0.182,v:777423},
+{r:53,s:"GRT",n:"The Graph",p:0.0250,v:573947},{r:54,s:"XEC",n:"eCash",p:0.0000000723,v:402799},
+{r:55,s:"ASTEROID",n:"Asteroid Shiba",p:0.000287,v:400229},{r:56,s:"TUSD",n:"TrueUSD",p:1.00,v:395276},
+{r:57,s:"USDS",n:"USDS",p:0.994,v:380972},{r:58,s:"XEM",n:"NEM",p:0.000710,v:303502},
+{r:59,s:"WOLF",n:"Landwolf",p:0.0000107,v:220271},{r:60,s:"APTM",n:"Apertum",p:0.217,v:207749},
+{r:61,s:"USDC",n:"USDC",p:1.00,v:158654},{r:62,s:"SWCH",n:"Swisscheese",p:0.0580,v:62848},
+{r:63,s:"MCOIN",n:"MCOIN",p:0.0298,v:25662},{r:64,s:"VOW",n:"VOW",p:0.0230,v:22010},
+{r:65,s:"ROLL",n:"Roll",p:0.0805,v:21865},{r:66,s:"JYAI",n:"Jerry The Turtle",p:0.0000119,v:20692},
+{r:67,s:"APEPE",n:"Ape and Pepe",p:0.0000000129,v:8185},{r:68,s:"LF",n:"LF",p:0.0000417,v:7647},
+{r:69,s:"ONE",n:"Harmony",p:0.00759,v:3962},{r:70,s:"XDC",n:"XinFin Network",p:0.0302,v:2959},
+{r:71,s:"KCS",n:"KuCoin Token",p:11.98,v:1838},{r:72,s:"SAPIEN",n:"Sapien",p:0.390,v:878},
+{r:73,s:"OMG",n:"OMG Network",p:0.0600,v:693},{r:74,s:"KUB",n:"KUB Coin",p:1.46,v:519},
+{r:75,s:"FRAX",n:"Frax",p:0.840,v:452},{r:76,s:"KISHU",n:"Kishu Inu",p:0.000000000199,v:419},
+{r:77,s:"RAY",n:"Raydium",p:0.631,v:373},{r:78,s:"MORPHO",n:"Morpho Token",p:1.20,v:344},
+{r:79,s:"NEO",n:"NEO",p:3.07,v:327},{r:80,s:"TON",n:"Toncoin",p:1.31,v:299},
+{r:81,s:"CFG",n:"Centrifuge",p:0.265,v:279},{r:82,s:"TX",n:"TX",p:0.00862,v:243},
+{r:83,s:"DOG",n:"The Doge NFT",p:0.000680,v:234},{r:84,s:"STO",n:"StakeStone",p:0.100,v:232},
+{r:85,s:"MAGA",n:"MAGA",p:0.0000000295,v:230},{r:86,s:"NEXO",n:"Nexo",p:0.885,v:228},
+{r:87,s:"NAVX",n:"NAVI Protocol",p:0.00850,v:225},{r:88,s:"LUNC",n:"Terra Classic",p:0.0000388,v:215},
+{r:89,s:"SKYAI",n:"SKYAI",p:0.146,v:177},{r:90,s:"ASR",n:"AS Roma Fan Token",p:1.25,v:159},
+{r:91,s:"CITY",n:"Man City Fan Token",p:0.511,v:150},{r:92,s:"BABYDOGE",n:"Baby Doge Coin",p:0.000000000000615,v:128},
+{r:93,s:"QUICK",n:"Quickswap",p:0.0110,v:121},{r:94,s:"XYM",n:"Symbol",p:0.00402,v:120},
+{r:95,s:"GRASS",n:"Grass",p:0.263,v:117},{r:96,s:"CLAWD",n:"clawd.atg.eth",p:0.0000248,v:103},
+{r:97,s:"AI",n:"Sleepless AI",p:0.0226,v:102},{r:98,s:"PING",n:"Ping",p:0.00225,v:100},
+{r:99,s:"CORE",n:"Core DAO",p:0.0500,v:94},{r:100,s:"FLR",n:"Flare Network",p:0.00784,v:90},
+{r:101,s:"GTC",n:"Gitcoin",p:0.104,v:83},{r:102,s:"SUSHI",n:"SUSHI",p:0.203,v:75},
+{r:103,s:"SXP",n:"Solar",p:0.00140,v:71},{r:104,s:"SATS",n:"SATS BRC",p:0.0000000179,v:70},
+{r:105,s:"AP",n:"America Party",p:0.00144,v:68},{r:106,s:"GMX",n:"GMX",p:6.00,v:67},
+{r:107,s:"KSM",n:"Kusama",p:4.81,v:66},{r:108,s:"DUSK",n:"Dusk",p:0.162,v:66},
+{r:109,s:"APE",n:"ApeCoin",p:0.199,v:58},{r:110,s:"LIT",n:"Lighter",p:0.935,v:54},
+{r:111,s:"KNC",n:"Kyber Network",p:0.141,v:53},{r:112,s:"GRIFFAIN",n:"test griffain",p:0.0211,v:52},
+{r:113,s:"NPC",n:"Non-Playable Coin",p:0.00733,v:51},{r:114,s:"LAB",n:"LAB",p:0.643,v:51},
+{r:115,s:"BOME",n:"Book of Meme",p:0.000603,v:50},{r:116,s:"BP",n:"Backpack",p:0.143,v:50},
+{r:117,s:"TRADOOR",n:"TRADOOR",p:1.51,v:49},{r:118,s:"FIDA",n:"Bonfida",p:0.0162,v:49},
+{r:119,s:"BAT",n:"Basic Attention Token",p:0.0950,v:45},{r:120,s:"CVC",n:"Civic",p:0.0276,v:42},
+{r:121,s:"PIVX",n:"PIVX",p:0.0800,v:40},{r:122,s:"NYM",n:"NYM",p:0.0309,v:38},
+{r:123,s:"RENDER",n:"Render Token",p:1.69,v:37},{r:124,s:"SENTIS",n:"Sentism AI",p:0.0638,v:36},
+{r:125,s:"SOPH",n:"Sophon",p:0.00805,v:36},{r:126,s:"NFP",n:"NFPrompt",p:0.0151,v:34},
+{r:127,s:"BOB",n:"Build on BNB",p:0.0000000382,v:33},{r:128,s:"EGLD",n:"MultiversX",p:3.60,v:32},
+{r:129,s:"NOT",n:"Notcoin",p:0.000420,v:32},{r:130,s:"ETHW",n:"EthereumPoW",p:0.300,v:32},
+{r:131,s:"COQ",n:"COQINU",p:0.0000000119,v:32},{r:132,s:"MOODENG",n:"MOO DENG",p:0.0000112,v:31},
+{r:133,s:"UB",n:"Unibase",p:0.0570,v:30},{r:134,s:"LABUBU",n:"LABUBU SOL",p:0.00230,v:29},
+{r:135,s:"C98",n:"Coin98",p:0.0220,v:27},{r:136,s:"OKB",n:"OKB",p:105.00,v:27},
+{r:137,s:"FTT",n:"FTX Token",p:0.279,v:25},{r:138,s:"WHITEWHALE",n:"The White Whale",p:0.0140,v:24},
+{r:139,s:"HIPPO",n:"sudeng",p:0.000160,v:24},{r:140,s:"BIGTIME",n:"Big Time",p:0.0125,v:24},
+{r:141,s:"AUDIO",n:"Audius",p:0.0249,v:23},{r:142,s:"REEF",n:"Reef Finance",p:0.0000760,v:23},
+{r:143,s:"BNT",n:"Bancor",p:0.400,v:22},{r:144,s:"DOGINME",n:"doginme",p:0.000106,v:22},
+{r:145,s:"AVA",n:"AVA (Travala)",p:0.230,v:22},{r:146,s:"TNSR",n:"Tensor",p:0.0566,v:21},
+{r:147,s:"CTA",n:"Cross The Ages",p:0.00960,v:21},{r:148,s:"EDGE",n:"edgeX",p:1.44,v:0}
+];
+
+function fmtP(p){
+  if(p>=1000)return'$'+p.toLocaleString('en',{minimumFractionDigits:2,maximumFractionDigits:2});
+  if(p>=1)return'$'+p.toFixed(2);
+  if(p>=0.001)return'$'+p.toFixed(4);
+  if(p>=0.000001)return'$'+p.toFixed(6);
+  return'$'+p.toExponential(3);
+}
+function fmtV(v){
+  if(v>=1e9)return'$'+(v/1e9).toFixed(2)+'B';
+  if(v>=1e6)return'$'+(v/1e6).toFixed(2)+'M';
+  if(v>=1e3)return'$'+(v/1e3).toFixed(1)+'K';
+  return v>0?'$'+v.toLocaleString():'—';
+}
+function inRange(p){return p>=2&&p<=500;}
+
+let sortCol='r',sortDir=1;
+function sort(col){
+  if(sortCol===col)sortDir*=-1;else{sortCol=col;sortDir=1;}
+  render();
+}
+
+function render(){
+  const q=document.getElementById('search').value.toLowerCase();
+  const f=document.getElementById('filter').value;
+  let data=coins.filter(c=>{
+    const match=c.n.toLowerCase().includes(q)||c.s.toLowerCase().includes(q);
+    const rng=f==='range'?inRange(c.p):true;
+    return match&&rng;
+  });
+  data.sort((a,b)=>{
+    if(sortCol==='r')return(a.r-b.r)*sortDir;
+    if(sortCol==='price')return(a.p-b.p)*sortDir;
+    if(sortCol==='vol')return(a.v-b.v)*sortDir;
+    if(sortCol==='sym')return a.s.localeCompare(b.s)*sortDir;
+    if(sortCol==='name')return a.n.localeCompare(b.n)*sortDir;
+    return 0;
+  });
+  const tbody=document.getElementById('tbody');
+  tbody.innerHTML=data.map(c=>`
+    <tr>
+      <td class="rank">${c.r}</td>
+      <td class="sym">${c.s}</td>
+      <td class="name">${c.n}${inRange(c.p)?` <span class="badge">$2–$500</span>`:''}</td>
+      <td class="price">${fmtP(c.p)}</td>
+      <td class="vol">${fmtV(c.v)}</td>
+    </tr>
+  `).join('');
+}
+
+document.getElementById('search').addEventListener('input',render);
+document.getElementById('filter').addEventListener('change',render);
+render();
+</script>
