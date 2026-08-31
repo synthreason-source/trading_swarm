@@ -36,9 +36,16 @@
 #include <ArduinoJson.h>
 #include <Preferences.h>
 
+// WiFiClientSecure's TLS handshake needs more stack than the ESP32
+// Arduino core gives the loop task by default (8KB). Undersized stack
+// here is a common cause of a silent crash/reboot loop — which looks
+// exactly like "nothing shows up on the OLED," because the crash
+// happens before the first draw call. Must be called before setup().
+SET_LOOP_TASK_STACK_SIZE(16 * 1024);
+
 // ---------------- WiFi ----------------
-const char* WIFI_SSID     = "YOUR_WIFI_SSID";
-const char* WIFI_PASSWORD = "YOUR_WIFI_PASSWORD";
+const char* WIFI_SSID     = "";
+const char* WIFI_PASSWORD = "";
 
 // ---------------- OLED (unchanged from your setup) ----------------
 #define OLED_RESET U8X8_PIN_NONE
@@ -71,7 +78,7 @@ const char* TOKEN_LABEL[NUM_TOKENS] = {"STR.DN", "DOWN", "FLAT", "UP", "STR.UP"}
 // Midpoint % used to turn a predicted token back into a price guess.
 const float TOKEN_MIDPOINT_PCT[NUM_TOKENS] = {-2.5f, -0.8f, 0.0f, 0.8f, 2.5f};
 
-Token classifyMovement(float pctChange) {
+int8_t classifyMovement(float pctChange) {
   if (pctChange < -1.5f) return STRONG_DOWN;
   if (pctChange < -0.3f) return DOWN;
   if (pctChange <  0.3f) return FLAT;
@@ -116,7 +123,7 @@ void saveState() {
 }
 
 // ---------------- Prediction ----------------
-Token pickNextToken(int8_t fromToken) {
+int8_t pickNextToken(int8_t fromToken) {
   if (fromToken == TOKEN_NONE) {
     return (Token)random(0, NUM_TOKENS);  // no history yet: uniform guess
   }
@@ -136,11 +143,20 @@ Token pickNextToken(int8_t fromToken) {
 
 // ---------------- Networking ----------------
 void connectWiFi() {
+  Serial.println("[wifi] connecting...");
   WiFi.mode(WIFI_STA);
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
   unsigned long start = millis();
   while (WiFi.status() != WL_CONNECTED && millis() - start < 20000) {
     delay(250);
+    Serial.print(".");
+  }
+  Serial.println();
+  if (WiFi.status() == WL_CONNECTED) {
+    Serial.print("[wifi] connected, IP=");
+    Serial.println(WiFi.localIP());
+  } else {
+    Serial.println("[wifi] FAILED to connect within 20s");
   }
 }
 
@@ -157,10 +173,19 @@ bool fetchBtcPrice(float& outPrice) {
                           // matters for your use case.
 
   HTTPClient https;
+  https.setConnectTimeout(8000);
+  https.setTimeout(8000);
   const char* url = "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd";
-  if (!https.begin(client, url)) return false;
+  Serial.println("[http] begin...");
+  if (!https.begin(client, url)) {
+    Serial.println("[http] begin() failed");
+    return false;
+  }
 
+  Serial.println("[http] GET...");
   int code = https.GET();
+  Serial.print("[http] status code: ");
+  Serial.println(code);
   if (code != HTTP_CODE_OK) {
     https.end();
     return false;
@@ -168,12 +193,20 @@ bool fetchBtcPrice(float& outPrice) {
 
   String payload = https.getString();
   https.end();
+  Serial.print("[http] payload: ");
+  Serial.println(payload);
 
-  StaticJsonDocument<256> doc;
+  JsonDocument doc;  // ArduinoJson v7: unified, auto-sized document
   DeserializationError err = deserializeJson(doc, payload);
-  if (err) return false;
+  if (err) {
+    Serial.print("[json] parse failed: ");
+    Serial.println(err.c_str());
+    return false;
+  }
 
   outPrice = doc["bitcoin"]["usd"].as<float>();
+  Serial.print("[price] ");
+  Serial.println(outPrice);
   return outPrice > 0.0f;
 }
 
@@ -184,7 +217,7 @@ void runCycle() {
 
   if (lastPrice > 0.0f) {
     float pctChange = (currentPrice - lastPrice) / lastPrice * 100.0f;
-    Token actualToken = classifyMovement(pctChange);
+    int8_t actualToken = classifyMovement(pctChange);
 
     // Verify the prediction made last cycle, if any.
     if (predictedToken != TOKEN_NONE) {
@@ -205,7 +238,7 @@ void runCycle() {
   lastPrice = currentPrice;
 
   // Make the next prediction from the current state.
-  Token next = pickNextToken(lastToken);
+  int8_t next = pickNextToken(lastToken);
   predictedToken = next;
   predictedPrice = currentPrice * (1.0f + TOKEN_MIDPOINT_PCT[next] / 100.0f);
 
@@ -213,6 +246,18 @@ void runCycle() {
 }
 
 // ---------------- Display ----------------
+// Single-line status splash — used during boot/connect so the screen
+// is never sitting blank while WiFi or HTTP calls are in progress.
+void showStatus(const char* line1, const char* line2 = "") {
+  u8g2.clearBuffer();
+  u8g2.setFont(u8g2_font_4x6_tr);
+  u8g2.drawStr(xOffset, yOffset + 14, line1);
+  if (line2 && line2[0]) {
+    u8g2.drawStr(xOffset, yOffset + 22, line2);
+  }
+  u8g2.sendBuffer();
+}
+
 void updateDisplay() {
   u8g2.clearBuffer();
   u8g2.setFont(u8g2_font_4x6_tr);
@@ -253,18 +298,32 @@ void updateDisplay() {
 
 // ---------------- Setup / loop ----------------
 void setup(void) {
+  Serial.begin(115200);
+  delay(300);  // let USB serial settle
+  Serial.println("\n[boot] starting");
+
   u8g2.begin();
   u8g2.setContrast(255);
   u8g2.setBusClock(400000);
+  showStatus("Booting...");  // prove the display works before anything risky runs
 
   randomSeed(esp_random());
   loadState();
+
+  showStatus("Connecting", "to WiFi...");
   connectWiFi();
+
+  if (WiFi.status() == WL_CONNECTED) {
+    showStatus("Fetching", "BTC price...");
+  } else {
+    showStatus("WiFi FAILED", "check creds");
+  }
 
   // Run one cycle immediately so the display has something to show
   // right away instead of waiting a full interval.
   runCycle();
   lastFetchMs = millis();
+  Serial.println("[boot] setup complete");
 }
 
 void loop(void) {
