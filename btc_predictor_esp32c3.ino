@@ -56,7 +56,7 @@ U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0, OLED_RESET, OLED_SCL, OLED_SDA
 const int width = 72;
 const int height = 40;
 const int xOffset = 30;  // = (132-w)/2
-const int yOffset = 12;  // = (64-h)/2
+const int yOffset = 22;  // = (64-h)/2
 
 // ---------------- Timing ----------------
 // CoinGecko's free tier is fine with this; don't go much faster.
